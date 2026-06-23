@@ -1,42 +1,52 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
 import os
+import json
 import urllib.request
 import urllib.error
-import json
-
-app = Flask(__name__)
-CORS(app)
 
 SYSTEM_PROMPT = """You are UniBot, a friendly and knowledgeable AI assistant 
 designed specifically to help university students. You assist with:
-
 - Academic topics: study tips, exam preparation, time management, assignment writing
 - Course subjects: mathematics, computer science, engineering, cloud computing, networking
 - Career guidance: internships, resume building, LinkedIn, job applications
 - Postgraduate advice: Masters applications, scholarships, GRE/IELTS preparation
 - University life: stress management, group projects, deadlines, campus life
 - Cloud computing concepts: AWS, Azure, GCP, DevOps, certifications (CCNA, AWS SAA, etc.)
-
 Keep responses concise, friendly, and practical. Use bullet points for lists.
 Use **bold** for key terms. Maximum 3 paragraphs unless a longer answer is needed.
 Always be encouraging and supportive to students."""
 
 
-@app.route("/api/chat", methods=["POST", "OPTIONS"])
-def chat():
+def handler(request):
+    # Handle CORS preflight
     if request.method == "OPTIONS":
-        return "", 200
+        from http.server import BaseHTTPRequestHandler
+        pass
 
-    data = request.get_json()
-    if not data or not data.get("message"):
-        return jsonify({"error": "Message is required"}), 400
+    headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Content-Type": "application/json",
+    }
 
-    user_message = data["message"].strip()
+    if request.method == "OPTIONS":
+        return Response("", 200, headers)
+
+    if request.method != "POST":
+        return Response(json.dumps({"error": "Method not allowed"}), 405, headers)
+
+    try:
+        body = json.loads(request.body)
+        user_message = body.get("message", "").strip()
+    except Exception:
+        return Response(json.dumps({"error": "Invalid JSON"}), 400, headers)
+
+    if not user_message:
+        return Response(json.dumps({"error": "Message is required"}), 400, headers)
+
     api_key = os.environ.get("OPENAI_API_KEY")
-
     if not api_key:
-        return jsonify({"error": "OpenAI API key not configured"}), 500
+        return Response(json.dumps({"error": "OpenAI API key not configured"}), 500, headers)
 
     payload = json.dumps({
         "model": "gpt-3.5-turbo",
@@ -59,15 +69,12 @@ def chat():
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=15) as response:
-            result = json.loads(response.read().decode("utf-8"))
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
             reply = result["choices"][0]["message"]["content"].strip()
-            return jsonify({"reply": reply})
+            return Response(json.dumps({"reply": reply}), 200, headers)
     except urllib.error.HTTPError as e:
-        return jsonify({"error": f"OpenAI error: {e.code}"}), 502
+        error_body = e.read().decode("utf-8")
+        return Response(json.dumps({"error": f"OpenAI error: {e.code}", "details": error_body}), 502, headers)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-if __name__ == "__main__":
-    app.run(debug=True)
+        return Response(json.dumps({"error": str(e)}), 500, headers)

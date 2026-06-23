@@ -1,94 +1,102 @@
-from http.server import BaseHTTPRequestHandler
-import json
 import os
+import json
 import urllib.request
 import urllib.error
 
 SYSTEM_PROMPT = """You are UniBot, a friendly and knowledgeable AI assistant 
 designed specifically to help university students. You assist with:
-
 - Academic topics: study tips, exam preparation, time management, assignment writing
 - Course subjects: mathematics, computer science, engineering, cloud computing, networking
 - Career guidance: internships, resume building, LinkedIn, job applications
 - Postgraduate advice: Masters applications, scholarships, GRE/IELTS preparation
 - University life: stress management, group projects, deadlines, campus life
-- Cloud computing concepts: AWS, Azure, GCP, DevOps, certifications (CCNA, AWS SAA, etc.)
-
-Keep responses concise, friendly, and practical. Use bullet points for lists.
-Use **bold** for key terms. Maximum 3 paragraphs unless a longer answer is needed.
+- Cloud computing: AWS, Azure, GCP, DevOps, certifications (CCNA, AWS SAA, etc.)
+Keep responses concise, friendly, and practical. Use **bold** for key terms.
 Always be encouraging and supportive to students."""
 
 
-class handler(BaseHTTPRequestHandler):
+def handler(request):
+    cors_headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+        "Content-Type": "application/json",
+    }
 
-    def do_OPTIONS(self):
-        self.send_response(200)
-        self._send_cors_headers()
-        self.end_headers()
+    if request.method == "OPTIONS":
+        return {"statusCode": 200, "headers": cors_headers, "body": ""}
 
-    def do_POST(self):
-        # Read body
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length)
+    if request.method != "POST":
+        return {
+            "statusCode": 405,
+            "headers": cors_headers,
+            "body": json.dumps({"error": "Method not allowed"})
+        }
 
-        try:
-            data = json.loads(body)
-            user_message = data.get("message", "").strip()
-        except Exception:
-            self._respond(400, {"error": "Invalid JSON"})
-            return
+    try:
+        body = json.loads(request.body)
+        user_message = body.get("message", "").strip()
+    except Exception:
+        return {
+            "statusCode": 400,
+            "headers": cors_headers,
+            "body": json.dumps({"error": "Invalid JSON"})
+        }
 
-        if not user_message:
-            self._respond(400, {"error": "Message is empty"})
-            return
+    if not user_message:
+        return {
+            "statusCode": 400,
+            "headers": cors_headers,
+            "body": json.dumps({"error": "Message is required"})
+        }
 
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            self._respond(500, {"error": "API key not configured"})
-            return
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return {
+            "statusCode": 500,
+            "headers": cors_headers,
+            "body": json.dumps({"error": "OpenAI API key not configured"})
+        }
 
-        # Call OpenAI
-        payload = json.dumps({
-            "model": "gpt-3.5-turbo",
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": user_message}
-            ],
-            "max_tokens": 500,
-            "temperature": 0.7
-        }).encode("utf-8")
+    payload = json.dumps({
+        "model": "gpt-3.5-turbo",
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_message}
+        ],
+        "max_tokens": 500,
+        "temperature": 0.7
+    }).encode("utf-8")
 
-        req = urllib.request.Request(
-            "https://api.openai.com/v1/chat/completions",
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}"
-            },
-            method="POST"
-        )
+    req = urllib.request.Request(
+        url="https://api.openai.com/v1/chat/completions",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        },
+        method="POST"
+    )
 
-        try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                result = json.loads(resp.read().decode("utf-8"))
-                reply = result["choices"][0]["message"]["content"].strip()
-            self._respond(200, {"reply": reply})
-        except urllib.error.HTTPError as e:
-            self._respond(502, {"error": f"OpenAI error: {e.code}"})
-        except Exception as e:
-            self._respond(502, {"error": str(e)})
-
-    def _send_cors_headers(self):
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-
-    def _respond(self, status, body_dict):
-        self.send_response(status)
-        self._send_cors_headers()
-        self.send_header("Content-Type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps(body_dict).encode("utf-8"))
-
-    def log_message(self, format, *args):
-        pass  # suppress default logging
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            reply = result["choices"][0]["message"]["content"].strip()
+            return {
+                "statusCode": 200,
+                "headers": cors_headers,
+                "body": json.dumps({"reply": reply})
+            }
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8")
+        return {
+            "statusCode": 502,
+            "headers": cors_headers,
+            "body": json.dumps({"error": f"OpenAI error {e.code}", "details": error_body})
+        }
+    except Exception as e:
+        return {
+            "statusCode": 500,
+            "headers": cors_headers,
+            "body": json.dumps({"error": str(e)})
+        }
