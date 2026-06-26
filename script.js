@@ -8,7 +8,7 @@
 // ── Configuration ──────────────────────────────────────────
 
 // Gemini API endpoint (free tier)
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
 // System prompt: tells Gemini how to behave
 const SYSTEM_PROMPT = `You are UniBot, a friendly and helpful AI assistant for university students.
