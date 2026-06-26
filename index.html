@@ -21,9 +21,9 @@
     .status-dot { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--accent2); }
     .status-dot::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--accent2); animation: pulse 2s infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-    #setupBanner { background: #2d1f00; border-bottom: 1px solid #6e4c00; padding: 10px 20px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; font-size: 0.8rem; }
-    #setupBanner input { flex: 1; background: var(--bg); border: 1px solid #6e4c00; color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; outline: none; }
-    #setupBanner button { background: #f0a800; border: none; color: #000; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.8rem; white-space: nowrap; }
+    #setupBanner { background: #1a2a1a; border-bottom: 1px solid #2d5a2d; padding: 10px 20px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; font-size: 0.8rem; }
+    #setupBanner input { flex: 1; background: var(--bg); border: 1px solid #2d5a2d; color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 0.8rem; outline: none; }
+    #setupBanner button { background: var(--accent2); border: none; color: #000; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.8rem; white-space: nowrap; }
     .chips-bar { padding: 10px 20px; display: flex; gap: 8px; flex-wrap: wrap; background: var(--bg); border-bottom: 1px solid var(--border); flex-shrink: 0; }
     .chip { background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-size: 0.72rem; padding: 5px 12px; border-radius: 20px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
     .chip:hover { border-color: var(--accent); color: var(--accent); }
@@ -75,8 +75,8 @@
 </header>
 
 <div id="setupBanner">
-  ⚙️ <span>Enter your OpenAI API key to start:</span>
-  <input type="password" id="apiKeyInput" placeholder="sk-..." />
+  🔑 <span>Enter your free Gemini API key to start:</span>
+  <input type="password" id="apiKeyInput" placeholder="AIza..." />
   <button onclick="saveKey()">Save Key</button>
 </div>
 
@@ -103,18 +103,18 @@
     <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
   </button>
 </div>
-<div class="input-hint">Powered by OpenAI GPT · CodeAlpha Cloud Computing Internship</div>
+<div class="input-hint">Powered by Google Gemini (Free) · CodeAlpha Cloud Computing Internship</div>
 
 <script>
   const SYSTEM_PROMPT = `You are UniBot, a friendly AI assistant for university students. Help with:
 - Study tips, exam prep, time management, assignment writing
-- CS, engineering, cloud computing, networking subjects  
+- CS, engineering, cloud computing, networking subjects
 - Career guidance, internships, resume building, LinkedIn
 - Postgrad advice: Masters, scholarships, GRE/IELTS
 - Cloud certifications: AWS, Azure, CCNA
 Keep responses concise and friendly. Use **bold** for key terms. Be encouraging!`;
 
-  let apiKey = sessionStorage.getItem("openai_key") || "";
+  let apiKey = sessionStorage.getItem("gemini_key") || "";
   let isLoading = false;
 
   function updateBanner() {
@@ -124,9 +124,9 @@ Keep responses concise and friendly. Use **bold** for key terms. Be encouraging!
 
   function saveKey() {
     const val = document.getElementById("apiKeyInput").value.trim();
-    if (!val.startsWith("sk-")) { alert("Please enter a valid OpenAI key starting with sk-"); return; }
+    if (!val.startsWith("AIza")) { alert("Please enter a valid Gemini API key starting with AIza"); return; }
     apiKey = val;
-    sessionStorage.setItem("openai_key", val);
+    sessionStorage.setItem("gemini_key", val);
     updateBanner();
     appendBubble("✅ API key saved! I'm ready to help. What would you like to know?", "bot");
   }
@@ -188,7 +188,7 @@ Keep responses concise and friendly. Use **bold** for key terms. Be encouraging!
 
   async function sendMessage() {
     if (isLoading) return;
-    if (!apiKey) { alert("Please enter your OpenAI API key first!"); return; }
+    if (!apiKey) { alert("Please enter your Gemini API key first!"); return; }
     const text = input.value.trim();
     if (!text) return;
 
@@ -201,31 +201,27 @@ Keep responses concise and friendly. Use **bold** for key terms. Be encouraging!
     showTyping();
 
     try {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: "gpt-3.5-turbo",
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: text }
-          ],
-          max_tokens: 500,
-          temperature: 0.7
-        })
-      });
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+            contents: [{ parts: [{ text }] }]
+          })
+        }
+      );
 
       const data = await res.json();
       removeTyping();
 
-      if (data.choices && data.choices[0]) {
+      if (data.candidates && data.candidates[0]) {
+        const reply = data.candidates[0].content.parts[0].text.trim();
         appendTimestamp();
-        appendBubble(data.choices[0].message.content.trim(), "bot");
+        appendBubble(reply, "bot");
       } else if (data.error) {
-        appendBubble(`⚠️ OpenAI error: ${data.error.message}`, "bot");
+        appendBubble(`⚠️ Gemini error: ${data.error.message}`, "bot");
       }
     } catch (err) {
       removeTyping();
