@@ -124,7 +124,7 @@ Keep responses concise and friendly. Use **bold** for key terms. Be encouraging!
 
   function saveKey() {
     const val = document.getElementById("apiKeyInput").value.trim();
-    if (val.length < 10) { alert("Please enter a valid Gemini API key"); return; }
+    if (val.length < 10) { alert("Please enter a valid Gemini AFPI key"); return; }
     apiKey = val;
     sessionStorage.setItem("gemini_key", val);
     updateBanner();
